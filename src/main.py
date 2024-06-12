@@ -1,18 +1,32 @@
-from typing import Union
 import uvicorn
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
-
-app = FastAPI()
-
-
-@app.get("/")
-def read_root():
-    return {"Hello": "World"}
+from src.controllers.routes import router
+from src.config.db import sync_engine, async_engine
+from src.models import generate_models
+from fastapi.middleware.cors import CORSMiddleware
 
 
-@app.get("/items/{item_id}")
-def read_item(item_id: int, q: Union[str, None] = None):
-    return {"item_id": item_id, "q": q}
+@asynccontextmanager
+async def lifecycle(app: FastAPI):
+    generate_models(sync_engine)
+    yield
+    await async_engine.dispose()
+
+
+app = FastAPI(
+    title="Todos API",
+    lifespan=lifecycle
+)
+app.include_router(router, prefix='/api')
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 if __name__ == "__main__":
